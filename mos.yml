@@ -1,5 +1,5 @@
 author: mongoose-os
-description: Breadbox - a smart bread prooving box
+description: Breadbox - a smart bread proofing box
 arch: esp8266
 version: 1.0
 manifest_version: 2017-05-18

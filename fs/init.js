@@ -11,12 +11,13 @@ load('api_aws.js');
 let getTemp = ffi('float getTemp()');
 let getHumidity = ffi('float getHumidity()');
 
-// GPIO pin which has a on/off relay connected
-let relayPin = 2;
-GPIO.set_mode(relayPin, GPIO.MODE_OUTPUT);
 
-//target temperature
-let targetTemperature = 28;
+let relayPin = 2; // GPIO pin which has a on/off relay connected
+let freq = 60000; // Milliseconds. How often to send temperature readings to the cloud
+let defaultTemp = 29; // Default target temp
+let retryInterval = 100; // Retry interval for checking timers
+
+GPIO.set_mode(relayPin, GPIO.MODE_OUTPUT);
 
 function updateState(newSt) {
   if (newSt.on !== undefined) {
@@ -24,31 +25,30 @@ function updateState(newSt) {
   }
 }
 
+let state = {
+  targetTemp: defaultTemp,
+  temp: 0,
+  humidity:0,
+  on: false
+};
+
 function applyHeater() {
   GPIO.write(relayPin, state.on || 0);
 }
 
-// Milliseconds. How often to send temperature readings to the cloud
-let freq = 60000;
-
-// sets a new target temp
-let setTargetTemp = function(newTarget) {
-};
-
-
-let state = {
-  on: false,
-  humidity: getHumidity(),
-  temp: getTemp(),
-  targetTemp: targetTemperature
-};
-
 let getStatus = function() {
+
+  let temp = getTemp();
+  let humidity = getHumidity();
+
+  if (temp <= 0 || temp > 1000 || humidity <= 0) {
+      return undefined;
+  }
   return {
-    temp: getTemp(),
-    humidity: getHumidity(),
-    on: GPIO.read(relayPin) === 1,
-    targetTemp: targetTemperature
+    targetTemp: state.targetTemp,
+    temp: temp,
+    humidity: humidity,
+    on: GPIO.read(relayPin) === 1
   };
 };
 
@@ -68,25 +68,30 @@ RPC.addHandler('Heater.GetState', function(args) {
 
 // Send temperature readings to the cloud
 Timer.set(freq, Timer.REPEAT, function() {
-  state = getStatus();
-  reportState();
+  reportDeviceState();
 }, null);
 
-function reportState() {
-  print('Reporting state:', JSON.stringify(state));
-  AWS.Shadow.update(0, state);
+function reportDeviceState() {
+    state = getStatus();
+    while (state === undefined) {
+        // Repeat read until valid
+        Sys.usleep(retryInterval);
+        state = getStatus();
+    }
+    print('Reporting state:', JSON.stringify(state));
+    AWS.Shadow.update(0, state);
 }
 
 AWS.Shadow.setStateHandler(function(ud, ev, reported, desired) {
   print('Event:', ev, '('+AWS.Shadow.eventName(ev)+')');
 
   if (ev === AWS.Shadow.CONNECTED) {
-    reportState();
+    reportDeviceState();
     return;
   }
 
-  print('Reported state:', JSON.stringify(reported));
-  print('Desired state:', JSON.stringify(desired));
+  print('Shadow Reported state:', JSON.stringify(reported));
+  print('Shadow Desired state:', JSON.stringify(desired));
 
   // mOS will request state on reconnect and deltas will arrive on changes.
   if (ev !== AWS.Shadow.GET_ACCEPTED && ev !== AWS.Shadow.UPDATE_DELTA) {
@@ -104,7 +109,7 @@ AWS.Shadow.setStateHandler(function(ud, ev, reported, desired) {
 
   if (ev === AWS.Shadow.UPDATE_DELTA) {
     // Report current state
-    reportState();
+    reportDeviceState();
   }
 }, null);
 

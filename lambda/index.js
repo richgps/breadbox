@@ -3,7 +3,7 @@
 /* eslint-disable  no-use-before-define */
 
 
-// Breadbox: A bread proving IOT solution with Bread making guidance
+// Alexa skill for Breadbox, a smart bread proving box
 
 const Alexa = require('ask-sdk-core');
 const AWS = require('aws-sdk');
@@ -19,8 +19,6 @@ config.IOT_BROKER_ENDPOINT = "a2f0pt9qrlmeme.iot.us-west-2.amazonaws.com".toLowe
 config.IOT_BROKER_REGION = "us-west-2";
 config.IOT_THING_NAME = "esp8266_0E65A1";
 config.params = { thingName: config.IOT_THING_NAME };
-
-const defaultTemperature = 28;
 
 // Initialize client for IoT
 AWS.config.region = config.IOT_BROKER_REGION;
