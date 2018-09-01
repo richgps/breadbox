@@ -12,10 +12,9 @@ let getTemp = ffi('float getTemp()');
 let getHumidity = ffi('float getHumidity()');
 
 
-let relayPin = 2; // GPIO pin which has a on/off relay connected
+let relayPin = 12; // GPIO pin which has a on/off relay connected
 let freq = 60000; // Milliseconds. How often to send temperature readings to the cloud
 let defaultTemp = 29; // Default target temp
-let retryInterval = 100; // Retry interval for checking timers
 
 GPIO.set_mode(relayPin, GPIO.MODE_OUTPUT);
 
@@ -74,8 +73,8 @@ Timer.set(freq, Timer.REPEAT, function() {
 function reportDeviceState() {
     state = getStatus();
     while (state === undefined) {
-        // Repeat read until valid
-        Sys.usleep(retryInterval);
+        // Repeat read every 100ms until valid
+        Sys.usleep(100);
         state = getStatus();
     }
     print('Reporting state:', JSON.stringify(state));
