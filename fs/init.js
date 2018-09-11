@@ -13,8 +13,7 @@ let getHumidity = ffi('float getHumidity()');
 
 
 let relayPin = 12; // GPIO pin which has a on/off relay connected
-let freq = 60000; // Milliseconds. How often to send temperature readings to the cloud
-let defaultTemp = 29; // Default target temp
+let freq = 2000; // Milliseconds. How often to send temperature readings to the cloud when on
 
 GPIO.set_mode(relayPin, GPIO.MODE_OUTPUT);
 
@@ -22,17 +21,34 @@ function updateState(newSt) {
   if (newSt.on !== undefined) {
     state.on = newSt.on;
   }
+  if (newSt.targetTemp !== undefined) {
+    state.targetTemp = newSt.targetTemp;
+  }
 }
 
 let state = {
-  targetTemp: defaultTemp,
+  targetTemp: 0,
   temp: 0,
   humidity:0,
-  on: false
+  on: false,
+  heaterOn: false,
 };
 
-function applyHeater() {
-  GPIO.write(relayPin, state.on || 0);
+function applyThermostat() {
+  if (state.on) {
+    // use a buffer zone of 1 degree to switch on
+    if (state.temp < state.targetTemp - 1) {
+        state.heaterOn = true;
+    } else if (state.temp >= state.targetTemp) {
+        state.heaterOn = false;
+    }
+  }
+  else {
+    // device state is off, so switch off heater
+    state.heaterOn = false;
+  }
+  // switch heater relay on/off
+  GPIO.write(relayPin, state.heaterOn || 0);
 }
 
 let getStatus = function() {
@@ -47,7 +63,8 @@ let getStatus = function() {
     targetTemp: state.targetTemp,
     temp: temp,
     humidity: humidity,
-    on: GPIO.read(relayPin) === 1
+    on: state.on,
+    heaterOn: GPIO.read(relayPin) === 1
   };
 };
 
@@ -71,12 +88,19 @@ Timer.set(freq, Timer.REPEAT, function() {
 }, null);
 
 function reportDeviceState() {
+    if (!state.on) {
+        return; // only report when device is turned on
+    }
     state = getStatus();
     while (state === undefined) {
         // Repeat read every 100ms until valid
         Sys.usleep(100);
         state = getStatus();
     }
+
+    // apply thermostatic control
+    applyThermostat();
+
     print('Reporting state:', JSON.stringify(state));
     AWS.Shadow.update(0, state);
 }
@@ -104,12 +128,10 @@ AWS.Shadow.setStateHandler(function(ud, ev, reported, desired) {
 
   print('New state:', JSON.stringify(state));
 
-  applyHeater();
+  applyThermostat();
 
   if (ev === AWS.Shadow.UPDATE_DELTA) {
     // Report current state
     reportDeviceState();
   }
 }, null);
-
-applyHeater();
