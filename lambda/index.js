@@ -3,7 +3,7 @@
 /* eslint-disable  no-use-before-define */
 
 
-// Alexa skill for Breadbox, a smart bread proving box
+// Breadbox: A bread proving IOT solution with Bread making guidance
 
 const Alexa = require('ask-sdk-core');
 const AWS = require('aws-sdk');
@@ -19,6 +19,15 @@ config.IOT_BROKER_ENDPOINT = "a2f0pt9qrlmeme.iot.us-west-2.amazonaws.com".toLowe
 config.IOT_BROKER_REGION = "us-west-2";
 config.IOT_THING_NAME = "esp8266_0E65A1";
 config.params = { thingName: config.IOT_THING_NAME };
+
+/* --------------------- Breadbox configuration ----------------------------- */
+const ciabattaImage = {
+    smallImageUrl: 'https://s3-us-west-2.amazonaws.com/bread-box-assets/cards/ciabatta/ciabatta-small.jpg',
+    largeImageUrl: 'https://s3-us-west-2.amazonaws.com/bread-box-assets/cards/ciabatta/ciabatta.jpg'
+};
+
+const defaultTemp = 29;
+const maxCheck = 4; // how many times to check for an update
 
 // Initialize client for IoT
 AWS.config.region = config.IOT_BROKER_REGION;
@@ -95,18 +104,22 @@ const TurnOnHandler = {
     },
 
     handle(handlerInput) {
-        var desiredTemp = handlerInput.requestEnvelope.request.intent.slots.temperature.value;
+        var targetTemp = handlerInput.requestEnvelope.request.intent.slots.temperature.value;
         var newState = "";
         const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
-        if (desiredTemp == null) { // no temp slot
-            newState = {'on':true};
-        } else {
-            newState = {'on':true, 'temp':desiredTemp};
+
+        if (targetTemp == null) { // no temp slot, use default target Temp
+            targetTemp = defaultTemp;
         }
 
+        newState = {'on':true, 'targetTemp':targetTemp};
+
         return updateShadow(newState).then(function(){
-            const speechOutput = (desiredTemp == null) ? `${requestAttributes.t('TURNON')}` : `${requestAttributes.t('TURNON')} ${requestAttributes.t('TARGET')} ${desiredTemp} degrees`;
-            return handlerInput.responseBuilder.speak(speechOutput).getResponse();
+            return checkTurnedOn().then(function(isOn){
+                const speechOutput = (!isOn) ? "Looks like breadbox is not connected, please check and try again" :  `<speak>${requestAttributes.t('TURNON')} ${targetTemp} degrees. <say-as interpret-as="interjection">${randomPhrase(speechConsGood)}</say-as>.</speak>`;
+                return handlerInput.responseBuilder.speak(speechOutput).getResponse();
+            });
+
         });
     },
 };
@@ -118,11 +131,12 @@ const TurnOffHandler = {
     },
 
     handle(handlerInput) {
-        const newState = {'on':true};
+        const newState = {'on':false};
         return Promise.all([getBreadboxData(),updateShadow(newState)]).then(function(data){
-            const isOn = getOn(data[0]);
+           // const isOn = getOn(data[0]);
+            const isOn = true;
             const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
-            const speechOutput = (isOn) ? `${requestAttributes.t('TURNOFF')}` : `${requestAttributes.t('ALREADYOFF')}`;
+            const speechOutput = (isOn) ? `${requestAttributes.t('TURNOFF')}. <say-as interpret-as="interjection">${randomPhrase(speechGoodbye)}</say-as>` : `${requestAttributes.t('ALREADYOFF')}`;
             return handlerInput.responseBuilder.speak(speechOutput).getResponse();
         });
    },
@@ -148,6 +162,25 @@ const StopHandler = {
             .getResponse();
     },
 };
+
+const CiabattaHandler = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'BakeCiabattaIntent';
+    },
+
+    handle(handlerInput) {
+        const attributesManager = handlerInput.attributesManager;
+        const responseBuilder = handlerInput.responseBuilder;
+        const requestAttributes = attributesManager.getRequestAttributes();
+        return responseBuilder
+            .speak(requestAttributes.t('STARTCIABATTA'))
+            .withStandardCard('Ciabatta', requestAttributes.t('CIABATTADETAIL'), ciabattaImage.smallImageUrl, ciabattaImage.largeImageUrl)
+            .getResponse();
+    },
+};
+
+
 
 const SessionEndedHandler = {
     canHandle(handlerInput) {
@@ -214,17 +247,24 @@ const FallbackHandler = {
 
 // 2. Constants ==================================================================================
 
+const speechConsGood = ["Awesome", "All righty", "Bam", "Bazinga", "Bob's your uncle", "Boom", "Booya", "Cha Ching", "Dynomite", "Hurrah", "Hurray", "Huzzah", "Kaboom", "Kaching",
+"Righto", "Simples", "Ta da", "Way to go", "Well done", "Whee", "Woo hoo", "Yay", "Wowza", "Yowsa"];
+
+const speechGoodbye = ["Goodbye", "Farewell", "Have a good day", "Take care", "Bye", "See you later", "OK, have a good one", "Laters", "Talk to you later", "So long", "Catch you later", "Peace out", "Adios", "Ciao", "Au revoir", "Sayonara"];
+
 const languageStrings = {
     en: {
         translation: {
-            WELCOME: 'Welcome to Breadbox.',
+            WELCOME: 'Welcome to breadbox.',
             HELP: 'Just say start warming and I\'ll let you know when it\'s ready.',
             NODATA: 'Sorry, Breadbox is unavailable at the moment . Please try again later.',
-            TURNON: 'OK warming up.',
+            TURNON: 'OK <prosody rate="fast">warming</prosody> up to ',
             TARGET: 'Target temperature is ',
             TURNOFF: 'OK switching off and cooling down.',
             ALREADYOFF: 'Breadbox is already switched off.',
             STOP: 'OK, catch you later',
+            STARTCIABATTA: 'OK, I\'ve sent details to your Alexa app.',
+            CIABATTADETAIL: 'Ferment: 17-24 hours\nPreparation: 30-45 minutes\nResting: 1.5 hours\nProving:45-60 minutes\nBaking: 18-20 minutes\n\nYou can ask alexa to:\n"Start the ferment"'
         },
     },
     // , 'de-DE': { 'translation' : { 'TITLE'   : "Local Helfer etc." } }
@@ -268,6 +308,41 @@ function getOn(payload){
 
 function round(value, decimals) {
   return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
+}
+
+const delay = t => new Promise(resolve => setTimeout(resolve, t));
+
+function getTimeStamp() {
+    return Math.round((new Date()).getTime() / 1000);
+}
+
+// Wait for box to report it's turned on
+function checkTurnedOn(checkCount) {
+    checkCount = checkCount || 0;
+    if (checkCount > maxCheck) {
+        return false;
+    }
+
+    // get current shadow state
+    return getBreadboxData().then(function(payload){
+        var isOn = payload.state.reported.on;
+        if (isOn) {
+            // check ON timestamp is recent, shadow state may remain on when powered off
+            if ((getTimeStamp() - payload.metadata.reported.on.timestamp) > 60) {
+                return false; // too much of a delay, box must be disconnected
+            }
+        }
+        return isOn
+        ? true
+        : delay(250).then(() => checkTurnedOn(checkCount + 1));
+    });
+}
+
+function randomPhrase(myData) {
+    // the argument is an array [] of words or phrases
+    var i = 0;
+    i = Math.floor(Math.random() * myData.length);
+    return(myData[i]);
 }
 
 function updateShadow(desiredState) {
@@ -326,6 +401,7 @@ exports.handler = skillBuilder
         TurnOnHandler,
         TurnOffHandler,
         StopHandler,
+        CiabattaHandler,
         FallbackHandler,
         SessionEndedHandler
     )

@@ -84,13 +84,13 @@ RPC.addHandler('Heater.GetState', function(args) {
 
 // Send temperature readings to the cloud
 Timer.set(freq, Timer.REPEAT, function() {
-  reportDeviceState();
+  // only start reporting when device is turned on
+  if (state.on) {
+    reportDeviceState();
+  }
 }, null);
 
 function reportDeviceState() {
-    if (!state.on) {
-        return; // only report when device is turned on
-    }
     state = getStatus();
     while (state === undefined) {
         // Repeat read every 100ms until valid
@@ -132,6 +132,6 @@ AWS.Shadow.setStateHandler(function(ud, ev, reported, desired) {
 
   if (ev === AWS.Shadow.UPDATE_DELTA) {
     // Report current state
-    reportDeviceState();
+    reportDeviceState(ev);
   }
 }, null);
