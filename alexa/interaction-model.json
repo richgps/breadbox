@@ -1,0 +1,160 @@
+{
+    "interactionModel": {
+        "languageModel": {
+            "invocationName": "breadbox",
+            "intents": [
+                {
+                    "name": "AMAZON.CancelIntent",
+                    "samples": []
+                },
+                {
+                    "name": "AMAZON.HelpIntent",
+                    "samples": []
+                },
+                {
+                    "name": "AMAZON.StopIntent",
+                    "samples": []
+                },
+                {
+                    "name": "TurnOnIntent",
+                    "slots": [
+                        {
+                            "name": "temperature",
+                            "type": "AMAZON.NUMBER"
+                        }
+                    ],
+                    "samples": [
+                        "heat up to {temperature}",
+                        "warm up to {temperature}",
+                        "warm up to {temperature} degrees",
+                        "heat up to {temperature} degrees",
+                        "heat up",
+                        "turn on",
+                        "warm up"
+                    ]
+                },
+                {
+                    "name": "TemperatureStatusIntent",
+                    "slots": [],
+                    "samples": [
+                        "how warm is it",
+                        "the temperature",
+                        "how hot",
+                        "for the temperature",
+                        "how hot is it",
+                        "what's the temperature"
+                    ]
+                },
+                {
+                    "name": "HeatingTimeLeftIntent",
+                    "slots": [],
+                    "samples": [
+                        "when will it be ready",
+                        "how much time before ready",
+                        "when will you be hot enough",
+                        "How long before ready"
+                    ]
+                },
+                {
+                    "name": "HumidityStatusIntent",
+                    "slots": [],
+                    "samples": [
+                        "for humidity",
+                        "what's the humidity",
+                        "how humid is it"
+                    ]
+                },
+                {
+                    "name": "ClimateStatusIntent",
+                    "slots": [],
+                    "samples": [
+                        "for climate",
+                        "for the temperature and humidity",
+                        "how's the climate",
+                        "How the environment",
+                        "what's the climate like"
+                    ]
+                },
+                {
+                    "name": "TurnOffIntent",
+                    "slots": [],
+                    "samples": [
+                        "turn off heater",
+                        "stop",
+                        "go off",
+                        "go cold",
+                        "switch off",
+                        "turn off"
+                    ]
+                },
+                {
+                    "name": "BakeCiabattaIntent",
+                    "slots": [],
+                    "samples": [
+                        "to bake ciabatta",
+                        "Let's bake ciabatta",
+                        "bake ciabatta",
+                        "ciabatta"
+                    ]
+                },
+                {
+                    "name": "TargetTemperatureIntent",
+                    "slots": [
+                        {
+                            "name": "temperature",
+                            "type": "AMAZON.NUMBER",
+                            "samples": [
+                                "{temperature} degrees",
+                                "{temperature}"
+                            ]
+                        }
+                    ],
+                    "samples": [
+                        "change the target temperature to {temperature} ",
+                        "change the temperature to {temperature}",
+                        "change the temperature to {temperature} degrees",
+                        "{temperature}",
+                        "{temperature} degrees"
+                    ]
+                },
+                {
+                    "name": "AMAZON.NavigateHomeIntent",
+                    "samples": []
+                }
+            ],
+            "types": []
+        },
+        "dialog": {
+            "intents": [
+                {
+                    "name": "TargetTemperatureIntent",
+                    "confirmationRequired": false,
+                    "prompts": {},
+                    "slots": [
+                        {
+                            "name": "temperature",
+                            "type": "AMAZON.NUMBER",
+                            "confirmationRequired": false,
+                            "elicitationRequired": true,
+                            "prompts": {
+                                "elicitation": "Elicit.Slot.1148461943015.1359308304046"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "delegationStrategy": "ALWAYS"
+        },
+        "prompts": [
+            {
+                "id": "Elicit.Slot.1148461943015.1359308304046",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "what temperature would you like?"
+                    }
+                ]
+            }
+        ]
+    }
+}

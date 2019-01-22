@@ -27,6 +27,7 @@ const ciabattaImage = {
 };
 
 const defaultTemp = 29;
+const maxTemp = 35;
 const maxCheck = 4; // how many times to check for an update
 
 // Initialize client for IoT
@@ -62,7 +63,7 @@ const TemperatureStatusHandler = {
 
     handle(handlerInput) {
         return getBreadboxData().then(function(payload){
-            const speechOutput = "It's currently " + getTemp(payload) + " degrees celcius";
+            const speechOutput = "Breadbox is currently" + getTemp(payload) + " degrees celcius";
             return handlerInput.responseBuilder.speak(speechOutput).getResponse();
        });
    },
@@ -76,7 +77,7 @@ const HumidityStatusHandler = {
 
     handle(handlerInput) {
     return getBreadboxData().then(function(payload){
-           const speechOutput = "Humidity is " + getHumidity(payload) + " percent";
+           const speechOutput = "Breadbox humidity is " + getHumidity(payload) + " percent";
            return handlerInput.responseBuilder.speak(speechOutput).getResponse();
        });
    },
@@ -91,7 +92,7 @@ const ClimateStatusHandler = {
 
     handle(handlerInput) {
        return getBreadboxData().then(function(payload){
-           const speechOutput = "It's currently " + getTemp(payload) + " degrees celcius with a humidity of " + getHumidity(payload) + " percent";
+           const speechOutput = "Breadbox is currently " + getTemp(payload) + " degrees celcius with a humidity of " + getHumidity(payload) + " percent";
            return handlerInput.responseBuilder.speak(speechOutput).getResponse();
        });
    },
@@ -104,19 +105,72 @@ const TurnOnHandler = {
     },
 
     handle(handlerInput) {
-        var targetTemp = handlerInput.requestEnvelope.request.intent.slots.temperature.value;
-        var newState = "";
+        var targetTemp = defaultTemp;
         const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
 
-        if (targetTemp == null) { // no temp slot, use default target Temp
-            targetTemp = defaultTemp;
+        // check if the intents contains a temperature slot
+        if (typeof handlerInput.requestEnvelope.request.intent.slots.temperature.value !== 'undefined') {
+            targetTemp = parseInt(handlerInput.requestEnvelope.request.intent.slots.temperature.value, 10);
+            if (isNaN(targetTemp)) {
+                // Somehow a non Number has snuck through, ask to try again
+                return handlerInput.responseBuilder.speak(requestAttributes.t('NOTSURE')).reprompt('What temperature would you like?').getResponse();
+            }
+        } else {
+            return handlerInput.responseBuilder.speak(requestAttributes.t('WHATTEMP')).reprompt().getResponse();
         }
 
+
+        if (targetTemp > maxTemp) {
+            // target temp to high, give a reason why we
+            return handlerInput.responseBuilder.speak(`${requestAttributes.t('OVERMAX')} ${maxTemp} degrees. ${requestAttributes.t('WHATTEMP')}`).reprompt().getResponse();
+        }
+
+        var newState = "";
         newState = {'on':true, 'targetTemp':targetTemp};
 
         return updateShadow(newState).then(function(){
             return checkTurnedOn().then(function(isOn){
                 const speechOutput = (!isOn) ? "Looks like breadbox is not connected, please check and try again" :  `<speak>${requestAttributes.t('TURNON')} ${targetTemp} degrees. <say-as interpret-as="interjection">${randomPhrase(speechConsGood)}</say-as>.</speak>`;
+                return handlerInput.responseBuilder.speak(speechOutput).getResponse();
+            });
+
+        });
+    },
+};
+
+const TargetTemperatureIntent = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'TargetTemperatureIntent';
+    },
+
+    handle(handlerInput) {
+        var targetTemp = defaultTemp;
+        const requestAttributes = handlerInput.attributesManager.getRequestAttributes();
+
+        // check if the intents contains a temperature slot
+        if (typeof handlerInput.requestEnvelope.request.intent.slots.temperature.value !== 'undefined') {
+            targetTemp = parseInt(handlerInput.requestEnvelope.request.intent.slots.temperature.value, 10);
+            if (isNaN(targetTemp)) {
+                // Somehow a non Number has snuck through, ask to try again
+                return handlerInput.responseBuilder.speak(requestAttributes.t('NOTSURE')).reprompt('What temperature would you like?').getResponse();
+            }
+        } else {
+            return handlerInput.responseBuilder.speak(requestAttributes.t('WHATTEMP')).reprompt().getResponse();
+        }
+
+
+        if (targetTemp > maxTemp) {
+            // target temp to high, give a reason why we
+            return handlerInput.responseBuilder.speak(`${requestAttributes.t('OVERMAX')} ${maxTemp} degrees. ${requestAttributes.t('WHATTEMP')}`).reprompt().getResponse();
+        }
+
+        var newState = "";
+        newState = {'on':true, 'targetTemp':targetTemp};
+
+        return updateShadow(newState).then(function(){
+            return checkTurnedOn().then(function(isOn){
+                const speechOutput = (!isOn) ? "Looks like breadbox is not connected, please check and try again" :  `<speak>${requestAttributes.t('TARGET')} ${targetTemp} degrees. <say-as interpret-as="interjection">${randomPhrase(speechConsGood)}</say-as>.</speak>`;
                 return handlerInput.responseBuilder.speak(speechOutput).getResponse();
             });
 
@@ -259,10 +313,13 @@ const languageStrings = {
             HELP: 'Just say start warming and I\'ll let you know when it\'s ready.',
             NODATA: 'Sorry, Breadbox is unavailable at the moment . Please try again later.',
             TURNON: 'OK <prosody rate="fast">warming</prosody> up to ',
-            TARGET: 'Target temperature is ',
+            TARGET: 'OK target temperature is now ',
             TURNOFF: 'OK switching off and cooling down.',
             ALREADYOFF: 'Breadbox is already switched off.',
             STOP: 'OK, catch you later',
+            OVERMAX: 'Sorry, maximum temperature is ',
+            WHATTEMP: 'What temperature would you like?',
+            NOTSURE: 'Sorry, I didn\'t quite catch that.',
             STARTCIABATTA: 'OK, I\'ve sent details to your Alexa app.',
             CIABATTADETAIL: 'Ferment: 17-24 hours\nPreparation: 30-45 minutes\nResting: 1.5 hours\nProving:45-60 minutes\nBaking: 18-20 minutes\n\nYou can ask alexa to:\n"Start the ferment"'
         },
@@ -396,6 +453,7 @@ exports.handler = skillBuilder
     .addRequestHandlers(
         LaunchHandler,
         TemperatureStatusHandler,
+        TargetTemperatureIntent,
         HumidityStatusHandler,
         ClimateStatusHandler,
         TurnOnHandler,

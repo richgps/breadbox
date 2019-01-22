@@ -13,7 +13,7 @@ packaged_template.yaml
 # misc
 .DS_Store
 mos-private.yml
-mos-public.yml
+mos.yml
 
 npm-debug.log*
 yarn-debug.log*

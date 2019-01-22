@@ -13,16 +13,16 @@ let getHumidity = ffi('float getHumidity()');
 
 
 let relayPin = 12; // GPIO pin which has a on/off relay connected
-let freq = 2000; // Milliseconds. How often to send temperature readings to the cloud when on
+let freq = 15000; // Milliseconds. How often to send temperature readings to the cloud when on
 
 GPIO.set_mode(relayPin, GPIO.MODE_OUTPUT);
 
 function updateState(newSt) {
-  if (newSt.on !== undefined) {
+  if (typeof newSt.on === 'boolean') {
     state.on = newSt.on;
   }
-  if (newSt.targetTemp !== undefined) {
-    state.targetTemp = newSt.targetTemp;
+  if (typeof newSt.targetTemp === 'number') {
+      state.targetTemp = newSt.targetTemp;
   }
 }
 
@@ -36,8 +36,8 @@ let state = {
 
 function applyThermostat() {
   if (state.on) {
-    // use a buffer zone of 1 degree to switch on
-    if (state.temp < state.targetTemp - 1) {
+    // use a buffer zone of 0.2 degrees to switch on
+    if (state.temp < state.targetTemp - 0.2) {
         state.heaterOn = true;
     } else if (state.temp >= state.targetTemp) {
         state.heaterOn = false;
